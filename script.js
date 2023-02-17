@@ -210,8 +210,15 @@ function update_hw_stats(data) {
   update_hw_stat(load_obj, data_obj.cpu_load ?? null);
 }
 
-function connect() {
-  let socket = new WebSocket("ws://127.0.0.1:8080");
+/**
+ * @typedef {object} StatusRelayConfig
+ * @property {string} websocketAddress
+ */
+/**
+ * @param {StatusRelayConfig} config
+ */
+function status_relay(config) {
+  let socket = new WebSocket(config.websocketAddress);
   let connection_established = false;
   socket.onopen = function (e) {
     console.log("[WS] Connection established");
@@ -276,7 +283,7 @@ function connect() {
     }
     activate_hud_error(true);
     setTimeout(function () {
-      connect();
+      status_relay();
     }, 250);
   };
 
@@ -287,8 +294,15 @@ function connect() {
   };
 }
 
-function clock() {
-  const epoch = new Date("2021-03-27 00:00:00");
+/**
+ * @typedef {object} ClockConfig
+ * @property {Date} epoch
+ */
+/**
+ * @param {ClockConfig} config
+ */
+function clock(config) {
+  const epoch = config.epoch;
   const seconds_to_days_multiplier = 1000 * 3600 * 24;
   setInterval(function () {
     const current_datetime = new Date();
@@ -344,9 +358,103 @@ function update_loop(animation_speed_ms) {
   }, fade_in_time + couple_loops_time + hidden_time);
 }
 
-function main() {
-  clock();
-  connect();
-  changelog();
+/**
+ * @typedef {object} ChangelogConfig
+ * @property {number} version
+ * @property {string} date
+ * @property {string[]} updates
+ */
+/**
+ * @param {ChangelogConfig} config
+ */
+function changelog(config) {
+  animateNumericalValue(
+    document.getElementById("version-value"),
+    0,
+    config.version,
+    750
+  );
+  document.getElementById("update-date").innerText = config.date;
+  const update_list_container = document.getElementById(
+    "update-list-container"
+  );
+  const update_ul = document.getElementById("update-list");
+  config.updates.forEach(function (value) {
+    let update_li = document.createElement("li");
+    update_li.className = "update-item";
+    update_li.innerHTML = value;
+    update_ul.appendChild(update_li);
+  });
+  const ul_height = update_ul.clientHeight;
+  const animation_speed_ms = Math.round(1.1 * (ul_height / 10) * 1000);
+  if (update_list_container.clientHeight < ul_height) {
+    update_ul.classList.add("anim-list-scroll");
+    //Roughly good speed, tested on 2 rows vs 10 rows
+    update_ul.style.animationDuration = `${animation_speed_ms}ms`;
+  }
+  update_loop(animation_speed_ms);
 }
-main();
+
+async function isConfigValid(config) {
+  // This is async because it had and will have fetch functions
+  // It doesnt right now
+  // TODO: Proper validation when the effort is justified
+  try {
+    // Validate clock
+    if (typeof config.clock !== "object") {
+      throw "config.changelog was not an object or may be undefined";
+    }
+    if (!config.clock.epoch instanceof Date) {
+      throw "config.clock.epoch is not an instance of Date";
+    }
+    // Validate changelog
+    if (typeof config.changelog !== "object") {
+      throw "config.changelog was not an object or may be undefined";
+    }
+    if (typeof config.changelog.version !== "number") {
+      throw "changelog_config.version is not a number";
+    }
+    if (typeof config.changelog.date !== "string") {
+      throw "changelog_config.date is not a string";
+    }
+    if (!Array.isArray(config.changelog.updates)) {
+      throw "changelog_config.updates is not an array";
+    }
+    if (config.changelog.updates.length === 0) {
+      throw "changelog_config.updates is empty";
+    }
+    for (let i = 0; i < config.changelog.updates.length; i++) {
+      const element = config.changelog.updates[i];
+      if (typeof element !== "string") {
+        throw `Item ${i} of changelog_config.updates is not a string`;
+      }
+    }
+    // Validate status relay
+    if (typeof config.statusRelay !== "object") {
+      throw "config.changelog was not an object or may be undefined";
+    }
+    if (!config.statusRelay.websocketAddress === "string") {
+      throw "config.statusRelay.websocketAddress is not a string";
+    }
+  } catch (error) {
+    console.error(`Failed to validate config:\n${error}`);
+    return false;
+  }
+  return true;
+}
+
+// I really dont want to use typescript
+/**
+ * @typedef {object} HUDConfig
+ * @property {ClockConfig} clock
+ * @property {ChangelogConfig} changelog
+ * @property {StatusRelayConfig} statusRelay
+ */
+/**
+ * @param {HUDConfig} config
+ */
+function main(config) {
+  clock(config.clock);
+  changelog(config.changelog);
+  status_relay(config.statusRelay);
+}

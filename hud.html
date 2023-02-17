@@ -8,16 +8,24 @@
     />
     <link rel="stylesheet" type="text/css" href="./main.css" />
     <link rel="stylesheet" type="text/css" href="./animations.css" />
+    <script type="text/javascript" defer src="./config.js"></script>
     <script type="text/javascript" defer src="./script.js"></script>
-    <script type="text/javascript" defer src="./changelog.js"></script>
-    <!-- <script defer>
+    <script defer>
       window.onload = (event) => {
-        show_timed_popup("LAUNCHING SELENIUM", 3);
-        setTimeout(function () {
-          show_timed_popup("CHECKING FOR BETTER SERVER", 3);
-        }, 2000);
+        if (CONFIG === undefined) {
+          console.error(
+            "`CONFIG` was undefined. Copy & modify the values from config.example.js to a file called `config.js` \
+            beside this HTML."
+          );
+          return;
+        }
+        isConfigValid(CONFIG).then((isValid) => {
+          if (isValid) {
+            main(CONFIG);
+          }
+        });
       };
-    </script> -->
+    </script>
   </head>
   <body>
     <div id="relative-main-container">

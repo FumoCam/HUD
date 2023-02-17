@@ -16,6 +16,12 @@ Will eventually require (LibreHardwareMonitor)[https://github.com/LibreHardwareM
 
 # Installing
 
+## 1. Config
+
+Create a new file called `config.js`. Use the values in `config.example.js` to populate.
+
+## 2. Add to OBS
+
 Create a new browser source in OBS. For the settings,
 
 - Check `Local File`
