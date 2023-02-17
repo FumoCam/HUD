@@ -12,6 +12,9 @@ const CONFIG = {
       "Did EVEN MORE updates.",
     ],
   },
+  hardwareMonitor: {
+    webserverAddress: "http://127.0.0.1:8085/data.json",
+  },
   statusRelay: {
     websocketAddress: "ws://127.0.0.1:8080",
   },

@@ -16,11 +16,25 @@ Will eventually require (LibreHardwareMonitor)[https://github.com/LibreHardwareM
 
 # Installing
 
-## 1. Config
+## 1. LibreHardwareMonitor
+
+Download the latest release from (LibreHardwareMonitor)[https://github.com/LibreHardwareMonitor/LibreHardwareMonitor], extract it somewhere it can stay forever, and run the EXE.
+
+1. Go to Options and click/enable
+
+   - Start Minimized
+   - Minimize On Close
+   - Run On Windows Startup
+
+2. Go to Options, Remote Web Server, and click Run.
+3. Go to Options, Remote Web Server, and click Port. Note the value supplied, it should be `some.ip.address:8085`. You can use that, but `127.0.0.1:8085` should work as well.
+   - Note, the value supplied to config should be something like `http://127.0.0.1:8085/data.json`, NOT `http://127.0.0.1:8085/`. Check the differences in your browser.
+
+## 2. Config
 
 Create a new file called `config.js`. Use the values in `config.example.js` to populate.
 
-## 2. Add to OBS
+## 3. Add to OBS
 
 Create a new browser source in OBS. For the settings,
 

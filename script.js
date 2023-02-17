@@ -152,10 +152,6 @@ function activate_hud_error(show_error) {
   let visibility = show_error ? "visible" : "hidden";
   document.getElementById("system-error").style.visibility = visibility;
   document.getElementById("hud-connection-loss").style.visibility = visibility;
-  if (show_error) {
-    document.getElementById("hw-stats-cpu-temp-value").innerText = "ERR";
-    document.getElementById("hw-stats-cpu-load-value").innerText = "ERR";
-  }
 }
 
 function animateNumericalValue(obj, start, end, duration) {
@@ -174,42 +170,6 @@ function animateNumericalValue(obj, start, end, duration) {
   window.requestAnimationFrame(step);
 }
 
-function update_hw_stat(obj, new_hw_stat) {
-  const new_hw_val_unrounded = parseFloat(new_hw_stat);
-  if (isNaN(new_hw_val_unrounded)) {
-    console.error(`Unparseable Value: ${new_hw_stat}`);
-    obj.innerText = "ERR";
-    return;
-  }
-  const new_hw_val = Math.round(new_hw_val_unrounded);
-  const old_hw_stat = obj.innerText;
-  let old_hw_val = parseInt(old_hw_stat);
-  old_hw_val = isNaN(old_hw_val) ? 0 : old_hw_val;
-
-  const animation_speed = old_hw_val == 0 ? 750 : 250;
-
-  animateNumericalValue(obj, old_hw_val, new_hw_val, animation_speed);
-}
-
-function update_hw_stats(data) {
-  let temperature_obj = document.getElementById("hw-stats-cpu-temp-value");
-  let load_obj = document.getElementById("hw-stats-cpu-load-value");
-
-  // try {
-  //   data_obj = JSON.parse(data);
-  // } catch {
-  //   console.error(`[HW Stats] Unable to parse JSON data: ${data}`);
-  //   temperature_obj.innerText = "ERR";
-  //   load_obj.innerText = "ERR";
-  //   return;
-  // }
-
-  data_obj = data;
-
-  update_hw_stat(temperature_obj, data_obj.cpu_temp ?? null);
-  update_hw_stat(load_obj, data_obj.cpu_load ?? null);
-}
-
 /**
  * @typedef {object} StatusRelayConfig
  * @property {string} websocketAddress
@@ -217,7 +177,7 @@ function update_hw_stats(data) {
 /**
  * @param {StatusRelayConfig} config
  */
-function status_relay(config) {
+function statusRelay(config) {
   let socket = new WebSocket(config.websocketAddress);
   let connection_established = false;
   socket.onopen = function (e) {
@@ -247,10 +207,6 @@ function status_relay(config) {
     /*Handle actions per message type*/
     let message_data = message_obj["value"];
     switch (message_obj["type"]) {
-      case "temp_log": {
-        update_temp_log(message_data["cpu"], message_data["gpu"]);
-        break;
-      }
       case "timed_message": {
         show_timed_popup(
           message_data["message"],
@@ -258,11 +214,6 @@ function status_relay(config) {
         );
         break;
       }
-      case "system_monitor_update": {
-        update_hw_stats(message_data["data"]);
-        break;
-      }
-
       default:
         console.error(`[WS] Unknown message type: ${event.data}`);
         break;
@@ -283,7 +234,7 @@ function status_relay(config) {
     }
     activate_hud_error(true);
     setTimeout(function () {
-      status_relay();
+      statusRelay(config);
     }, 250);
   };
 
@@ -321,6 +272,114 @@ function clock(config) {
       .padStart(3, "0");
     document.getElementById("clock-text").innerText = time_str;
     document.getElementById("date-value").innerText = day;
+  }, 1000);
+}
+
+function update_hw_stat(obj, new_hw_stat) {
+  // TODO: Cleanup old logic from when hw stat was sourced from custom backend
+  const new_hw_val_unrounded = parseFloat(new_hw_stat);
+  if (isNaN(new_hw_val_unrounded)) {
+    console.error(`Unparseable Value: ${new_hw_stat}`);
+    obj.innerText = "ERR";
+    return;
+  }
+  const new_hw_val = Math.round(new_hw_val_unrounded);
+  const old_hw_stat = obj.innerText;
+  let old_hw_val = parseInt(old_hw_stat);
+  old_hw_val = isNaN(old_hw_val) ? 0 : old_hw_val;
+
+  const animation_speed = old_hw_val == 0 ? 750 : 250;
+
+  animateNumericalValue(obj, old_hw_val, new_hw_val, animation_speed);
+}
+
+function update_hw_stats(data) {
+  const temperature_obj = document.getElementById("hw-stats-cpu-temp-value");
+  const load_obj = document.getElementById("hw-stats-cpu-load-value");
+  data_obj = data;
+
+  //update_hw_stat(temperature_obj, data_obj.cpu_temp ?? null);
+  update_hw_stat(load_obj, data_obj.cpu_load ?? null);
+}
+/**
+ * @typedef {object} HardwareMonitorConfig
+ * @property {string} webserverAddress
+ */
+/**
+ * @param {HardwareMonitorConfig} config
+ */
+function hardwareMonitorLoop(config) {
+  function processMonitorData(data) {
+    // Open/Libre Hardware Monitor is a nested MESS to process
+    const VALID_SENSOR_CATEGORIES = ["Temperatures", "Load"];
+    const VALID_SENSOR_VALUES = {
+      "CPU Total": "cpu_load",
+      "CPU Package": "cpu_temp",
+    };
+    let relevant_data = {};
+    let parsing_complete = false;
+    const computers = data.Children ?? [{}];
+    const hardware_list = computers[0].Children ?? [{}];
+    for (const hardware of hardware_list) {
+      const hardware_sensors = hardware.Children ?? [];
+      for (const sensor_category of hardware_sensors) {
+        const sensor_category_label = sensor_category.Text;
+        const valid_sensor =
+          sensor_category_label &&
+          VALID_SENSOR_CATEGORIES.includes(sensor_category_label);
+        // Skip if bad/unneeded sensor
+        if (!valid_sensor) {
+          continue;
+        }
+        // Continue parsing otherwise
+        const sensor_list = sensor_category.Children ?? [];
+        for (const sensor of sensor_list) {
+          const relevant_key = VALID_SENSOR_VALUES[sensor.Text ?? ""]; // TODO: Weird way of doing it from python, fix
+          if (relevant_key) {
+            const sensor_value_str = sensor.Value;
+            const sensor_value = parseInt(sensor_value_str);
+            relevant_data[relevant_key] = sensor_value;
+
+            if (
+              Object.keys(relevant_data).length ==
+              Object.keys(VALID_SENSOR_VALUES)
+            ) {
+              // Skip parsing the rest, we have what we need
+              parsing_complete = true;
+              break;
+            }
+          }
+        }
+
+        if (parsing_complete) {
+          // Skip parsing the rest, we have what we need
+          break;
+        }
+      }
+
+      if (parsing_complete) {
+        // Skip parsing the rest, we have what we need
+        break;
+      }
+    }
+    update_hw_stats(relevant_data);
+  }
+  setInterval(function () {
+    fetch(config.webserverAddress, {
+      method: "GET",
+      cache: "no-cache",
+    })
+      .then((response) => {
+        const contentType = response.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+          throw new TypeError("Response was not JSON");
+        }
+        return response.json();
+      })
+      .then((data) => {
+        processMonitorData(data);
+      })
+      .catch((error) => console.error(`[HWMonitor] ${error}`));
   }, 1000);
 }
 
@@ -429,9 +488,16 @@ async function isConfigValid(config) {
         throw `Item ${i} of changelog_config.updates is not a string`;
       }
     }
+    // Validate hardware monitor
+    if (typeof config.hardwareMonitor !== "object") {
+      throw "config.hardwareMonitor was not an object or may be undefined";
+    }
+    if (!config.hardwareMonitor.webserverAddress === "string") {
+      throw "config.hardwareMonitor.webserverAddress is not a string";
+    }
     // Validate status relay
     if (typeof config.statusRelay !== "object") {
-      throw "config.changelog was not an object or may be undefined";
+      throw "config.statusRelay was not an object or may be undefined";
     }
     if (!config.statusRelay.websocketAddress === "string") {
       throw "config.statusRelay.websocketAddress is not a string";
@@ -448,6 +514,7 @@ async function isConfigValid(config) {
  * @typedef {object} HUDConfig
  * @property {ClockConfig} clock
  * @property {ChangelogConfig} changelog
+ * @property {HardwareMonitorConfig} hardwareMonitor
  * @property {StatusRelayConfig} statusRelay
  */
 /**
@@ -456,5 +523,6 @@ async function isConfigValid(config) {
 function main(config) {
   clock(config.clock);
   changelog(config.changelog);
-  status_relay(config.statusRelay);
+  hardwareMonitorLoop(config.hardwareMonitor);
+  statusRelay(config.statusRelay);
 }
