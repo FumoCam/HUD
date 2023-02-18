@@ -298,7 +298,7 @@ function update_hw_stats(data) {
   const load_obj = document.getElementById("hw-stats-cpu-load-value");
   data_obj = data;
 
-  //update_hw_stat(temperature_obj, data_obj.cpu_temp ?? null);
+  update_hw_stat(temperature_obj, data_obj.cpu_temp ?? null);
   update_hw_stat(load_obj, data_obj.cpu_load ?? null);
 }
 /**
@@ -314,7 +314,7 @@ function hardwareMonitorLoop(config) {
     const VALID_SENSOR_CATEGORIES = ["Temperatures", "Load"];
     const VALID_SENSOR_VALUES = {
       "CPU Total": "cpu_load",
-      "CPU Package": "cpu_temp",
+      "Core (Tctl/Tdie)": "cpu_temp",
     };
     let relevant_data = {};
     let parsing_complete = false;
